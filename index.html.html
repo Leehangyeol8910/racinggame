@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .game-container {
+            width: 400px;
+            height: 600px;
+            position: relative;
+            margin: 20px auto;
+            background-color: #333;
+            overflow: hidden;
+        }
+        .road {
+            width: 100%;
+            height: 100%;
+            background-color: #444;
+        }
+        .lines {
+            position: absolute;
+            width: 10px;
+            height: 60px;
+            background-color: white;
+            left: 195px;
+        }
+        .car {
+            width: 30px;
+            height: 50px;
+            position: absolute;
+            bottom: 50px;
+            left: 180px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 160'%3E%3Cpath d='M10 40 L10 120 L90 120 L90 40 L80 20 L20 20 Z' fill='%2300a39b'/%3E%3Crect x='15' y='40' width='70' height='50' fill='white'/%3E%3Ccircle cx='25' cy='120' r='15' fill='%23333'/%3E%3Ccircle cx='75' cy='120' r='15' fill='%23333'/%3E%3Crect x='20' y='70' width='20' height='15' fill='%23ffdc73'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        .obstacle {
+            width: 30px;
+            height: 30px;
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        .obstacle.building {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 22V6L12 2L22 6V22H2Z' fill='%23666'/%3E%3Cpath d='M4 20V8L12 4L20 8V20H4Z' fill='%23999'/%3E%3Cpath d='M8 12H10V14H8zM14 12H16V14H14zM8 16H10V18H8zM14 16H16V18H14z' fill='%23fff'/%3E%3C/svg%3E");
+        }
+        .obstacle.tire {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23333'/%3E%3Ccircle cx='12' cy='12' r='8' fill='%23666'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23333'/%3E%3C/svg%3E");
+        }
+        .obstacle.barrier {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 6H22V10H2zM4 12H20V16H4z' fill='%23ff8c00' stroke='%23000'/%3E%3C/svg%3E");
+        }
+        .score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+        }
+        .game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 30px;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="road"></div>
+        <div class="score">점수: <span id="score">0</span></div>
+        <div class="car"></div>
+        <div class="game-over" id="gameOver">
+            게임 오버!<br>
+            점수: <span id="finalScore">0</span><br>
+            <button onclick="restartGame()">다시 시작</button>
+        </div>
+    </div>
+
+    <script>
+        const car = document.querySelector('.car');
+        const gameContainer = document.querySelector('.game-container');
+        const gameOver = document.getElementById('gameOver');
+        const scoreElement = document.getElementById('score');
+        const finalScoreElement = document.getElementById('finalScore');
+        
+        let carPosition = 180;
+        let score = 0;
+        let isGameOver = false;
+        let animationFrameId;
+        let lines = [];
+        let obstacles = [];
+        let speed = 5;
+
+        const obstacleTypes = ['building', 'tire', 'barrier'];
+
+        function moveCar(e) {
+            if (isGameOver) return;
+            
+            if (e.key === 'ArrowLeft' && carPosition > 0) {
+                carPosition -= 10;
+            }
+            if (e.key === 'ArrowRight' && carPosition < 360) {
+                carPosition += 10;
+            }
+            car.style.left = carPosition + 'px';
+        }
+
+        function createLine() {
+            const line = document.createElement('div');
+            line.className = 'lines';
+            line.style.top = '-60px';
+            gameContainer.appendChild(line);
+            lines.push({ element: line, position: -60 });
+        }
+
+        function createObstacle() {
+            if (Math.random() < 0.03) {
+                const obstacle = document.createElement('div');
+                const obstacleType = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+                obstacle.className = `obstacle ${obstacleType}`;
+                obstacle.style.left = Math.floor(Math.random() * 360) + 'px';
+                obstacle.style.top = '-30px';
+                gameContainer.appendChild(obstacle);
+                obstacles.push({ element: obstacle, position: -30 });
+            }
+        }
+
+        function moveElements() {
+            // 차선 이동
+            for (let i = lines.length - 1; i >= 0; i--) {
+                lines[i].position += speed;
+                lines[i].element.style.top = lines[i].position + 'px';
+                
+                if (lines[i].position > 600) {
+                    gameContainer.removeChild(lines[i].element);
+                    lines.splice(i, 1);
+                }
+            }
+
+            // 장애물 이동
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].position += speed;
+                obstacles[i].element.style.top = obstacles[i].position + 'px';
+                
+                // 충돌 검사
+                if (checkCollision(obstacles[i].element)) {
+                    endGame();
+                    return;
+                }
+
+                if (obstacles[i].position > 600) {
+                    gameContainer.removeChild(obstacles[i].element);
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    scoreElement.textContent = score;
+                }
+            }
+        }
+
+        function checkCollision(obstacle) {
+            const carRect = car.getBoundingClientRect();
+            const obstacleRect = obstacle.getBoundingClientRect();
+
+            return !(carRect.right < obstacleRect.left + 10 || 
+                    carRect.left > obstacleRect.right - 10 || 
+                    carRect.bottom < obstacleRect.top + 10 || 
+                    carRect.top > obstacleRect.bottom - 10);
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+
+            createObstacle();
+            if (lines.length === 0 || lines[lines.length - 1].position > 0) {
+                createLine();
+            }
+            moveElements();
+            speed = 5 + Math.floor(score / 100);
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            gameOver.style.display = 'block';
+            finalScoreElement.textContent = score;
+            cancelAnimationFrame(animationFrameId);
+        }
+
+        function restartGame() {
+            isGameOver = false;
+            score = 0;
+            speed = 5;
+            carPosition = 180;
+            scoreElement.textContent = '0';
+            gameOver.style.display = 'none';
+            car.style.left = carPosition + 'px';
+
+            obstacles.forEach(obstacle => gameContainer.removeChild(obstacle.element));
+            lines.forEach(line => gameContainer.removeChild(line.element));
+            obstacles = [];
+            lines = [];
+
+            gameLoop();
+        }
+
+        document.addEventListener('keydown', moveCar);
+        gameLoop();
+    </script>
+</body>
+</html>
